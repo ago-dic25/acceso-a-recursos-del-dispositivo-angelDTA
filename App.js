@@ -1,103 +1,54 @@
-import { StatusBar } from 'expo-status-bar';
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, Button, Image, ActivityIndicator } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
-import { Camera } from 'expo-camera';
+import { useEffect, useRef, useState } from 'react';
+import { Button, Image, StyleSheet, Text, View } from 'react-native';
 
 export default function App() {
-  const [hasPermission, setHasPermission] = useState(null);
-  const [photo, setPhoto] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [cameraType, setCameraType] = useState('back'); // ✅ ahora son strings
+  const [permission, requestPermission] = useCameraPermissions();
+  const [photoUri, setPhotoUri] = useState(null);
   const cameraRef = useRef(null);
 
   useEffect(() => {
     (async () => {
-      try {
-        const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
-        const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
-        setHasPermission(cameraStatus === 'granted' && mediaStatus === 'granted');
-      } catch (error) {
-        console.log('Error solicitando permisos:', error);
-        setHasPermission(false);
-      } finally {
-        setIsLoading(false);
-      }
+      await MediaLibrary.requestPermissionsAsync();
     })();
   }, []);
 
-  if (isLoading) {
+  if (!permission) {
+    return <View><Text>Cargando permisos...</Text></View>;
+  }
+
+  if (!permission.granted) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#00ffcc" />
-        <Text style={styles.text}>Cargando cámara...</Text>
+      <View style={styles.container}>
+        <Text>Se necesitan permisos para usar la cámara</Text>
+        <Button title="Dar permisos" onPress={requestPermission} />
       </View>
     );
   }
 
-  if (!hasPermission) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.text}>❌ No se concedieron permisos</Text>
-        <Button
-          title="🔄 Volver a pedir permisos"
-          onPress={async () => {
-            setIsLoading(true);
-            const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
-            const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
-            setHasPermission(cameraStatus === 'granted' && mediaStatus === 'granted');
-            setIsLoading(false);
-          }}
-        />
-      </View>
-    );
-  }
-
-  const takePhoto = async () => {
+  const tomarFoto = async () => {
     if (cameraRef.current) {
-      try {
-        const photoData = await cameraRef.current.takePictureAsync({ quality: 1 });
-        setPhoto(photoData.uri);
-        console.log('📸 Foto tomada:', photoData.uri);
-      } catch (error) {
-        console.log('Error al tomar la foto:', error);
-      }
+      const foto = await cameraRef.current.takePictureAsync();
+      setPhotoUri(foto.uri);
+      console.log('Foto tomada:', foto.uri);
+      await MediaLibrary.createAssetAsync(foto.uri);
     }
-  };
-
-  const savePhoto = async () => {
-    if (photo) {
-      try {
-        await MediaLibrary.createAssetAsync(photo);
-        alert('✅ Foto guardada en la galería');
-      } catch (error) {
-        console.log('Error al guardar la foto:', error);
-      }
-    }
-  };
-
-  const toggleCameraType = () => {
-    setCameraType(prev => (prev === 'back' ? 'front' : 'back'));
   };
 
   return (
     <View style={styles.container}>
-      <Camera
-        style={styles.camera}
-        type={cameraType}
-        ref={cameraRef}
-        onCameraReady={() => console.log('📷 Cámara lista')}
-      />
-
-      <View style={styles.controls}>
-        <Button title="📷 Tomar Foto" onPress={takePhoto} />
-        <Button title="🔁 Cambiar Cámara" onPress={toggleCameraType} />
-        <Button title="💾 Guardar Foto" onPress={savePhoto} disabled={!photo} />
-      </View>
-
-      {photo && <Image source={{ uri: photo }} style={styles.preview} />}
-
-      <StatusBar style="light" />
+      {!photoUri ? (
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing="back"
+        />
+      ) : (
+        <Image source={{ uri: photoUri }} style={styles.camera} />
+      )}
+      <Button title="Tomar foto" onPress={tomarFoto} />
+      {photoUri && <Button title="Tomar otra" onPress={() => setPhotoUri(null)} />}
     </View>
   );
 }
@@ -105,42 +56,16 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   camera: {
-    flex: 5,
-    width: '100%',
-  },
-  controls: {
-    flex: 1,
-    backgroundColor: '#111',
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: 10,
-  },
-  preview: {
-    width: 200,
-    height: 200,
-    alignSelf: 'center',
-    marginVertical: 10,
+    width: '90%',
+    height: 400,
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#00ffcc',
-  },
-  text: {
-    color: '#fff',
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 20,
   },
 });
-
-
 /*export default function App() {
 
   const [nombre, setNombre] = useState('');
