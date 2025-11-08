@@ -1,54 +1,60 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Button, Image, StyleSheet, Text, View } from 'react-native';
+import { Button, StyleSheet, Text, View } from 'react-native';
 
 export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
-  const [photoUri, setPhotoUri] = useState(null);
+  const [foto, setFoto] = useState(null);
   const cameraRef = useRef(null);
 
   useEffect(() => {
     (async () => {
-      await MediaLibrary.requestPermissionsAsync();
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Se necesitan permisos para guardar fotos en la galería.');
+      }
     })();
   }, []);
 
+
   if (!permission) {
-    return <View><Text>Cargando permisos...</Text></View>;
+    return (
+      <View style={styles.container}>
+        <Text>Cargando permisos...</Text>
+      </View>
+    );
   }
 
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text>Se necesitan permisos para usar la cámara</Text>
-        <Button title="Dar permisos" onPress={requestPermission} />
+        <Text>No se concedieron permisos para la camara.</Text>
+        <Button title="Conceder permisos" onPress={requestPermission} />
       </View>
     );
   }
 
   const tomarFoto = async () => {
     if (cameraRef.current) {
-      const foto = await cameraRef.current.takePictureAsync();
-      setPhotoUri(foto.uri);
-      console.log('Foto tomada:', foto.uri);
-      await MediaLibrary.createAssetAsync(foto.uri);
+      try {
+        const fotoData = await cameraRef.current.takePictureAsync();
+        setFoto(fotoData.uri);
+        console.log('Foto tomada:', fotoData.uri);
+        await MediaLibrary.saveToLibraryAsync(fotoData.uri);
+        console.log('Foto guardada');
+      } catch (error) {
+        console.log('Error al tomar la foto:', error);
+      }
     }
   };
 
   return (
     <View style={styles.container}>
-      {!photoUri ? (
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing="back"
-        />
-      ) : (
-        <Image source={{ uri: photoUri }} style={styles.camera} />
-      )}
-      <Button title="Tomar foto" onPress={tomarFoto} />
-      {photoUri && <Button title="Tomar otra" onPress={() => setPhotoUri(null)} />}
+      <CameraView style={styles.camera} ref={cameraRef} />
+      <Button title="Tomar Foto" onPress={tomarFoto} />
+      <StatusBar style="auto" />
     </View>
   );
 }
@@ -56,14 +62,15 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
   },
   camera: {
     width: '90%',
     height: 400,
     borderRadius: 10,
-    marginBottom: 20,
+    overflow: 'hidden',
   },
 });
 /*export default function App() {
